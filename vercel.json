@@ -6,7 +6,7 @@
     {
       "key": "API_URL",
       "description": "Backend API URL",
-      "value": "https://your-railway-backend.railway.app"
+      "value": "httpsmelo-backend-production.up.railway.app"
     }
   ]
 }
