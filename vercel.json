@@ -1,11 +1,5 @@
 {
-  "buildCommand": "echo 'Frontend only - no build needed'",
-  "outputDirectory": ".",
   "framework": "html",
-  "env": {
-    "API_URL": {
-      "description": "Backend API URL",
-      "value": "https://melo-backend-production.up.railway.app"
-    }
-  }
+  "buildCommand": "echo 'Frontend static files'",
+  "outputDirectory": "."
 }
