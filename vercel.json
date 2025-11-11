@@ -1,5 +1,0 @@
-{
-  "framework": "html",
-  "buildCommand": "echo 'Frontend static files'",
-  "outputDirectory": "."
-}
