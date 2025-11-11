@@ -1,0 +1,12 @@
+{
+  "buildCommand": "echo 'Frontend only - no build needed'",
+  "outputDirectory": ".",
+  "framework": "html",
+  "env": [
+    {
+      "key": "API_URL",
+      "description": "Backend API URL",
+      "value": "https://your-railway-backend.railway.app"
+    }
+  ]
+}
