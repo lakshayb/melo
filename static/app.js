@@ -1,179 +1,231 @@
 /**
- * Melo - The Therapist Chatbox
- * Frontend JavaScript Application - Vercel Deployment
+ * Melo - Complete Frontend
+ * Login + Chat History + Adaptive NLP Learning
  */
 
-// Configuration - Use environment variable or default
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:5000/api'
-  : 'https://melo-backend-production.up.railway.app/api'; // Change this to your Railway URL
+const API_BASE_URL = window.location.hostname === 'localhost'
+    ? 'http://localhost:5000/api'
+    : 'https://melo-backend-production.up.railway.app/api';
 
-// State management
+let currentUser = null;
 let currentConversationId = null;
-let currentUserId = 1;
 let isProcessing = false;
 
-// DOM Elements
-const chatForm = document.getElementById('chatForm');
-const messageInput = document.getElementById('messageInput');
-const chatWindow = document.getElementById('chatWindow');
-const typingIndicator = document.getElementById('typingIndicator');
-const emotionDisplay = document.getElementById('emotionDisplay');
-const emotionValue = document.getElementById('emotionValue');
-const emotionConfidence = document.getElementById('emotionConfidence');
-const charCounter = document.getElementById('charCounter');
-const sendBtn = document.getElementById('sendBtn');
-const disclaimer = document.getElementById('disclaimer');
-const closeDisclaimer = document.getElementById('closeDisclaimer');
-const newChatBtn = document.getElementById('newChatBtn');
-
-// Emotion emoji mapping
-const EMOTION_EMOJIS = {
-    'Sadness': '😢',
-    'Anger': '😠',
-    'Fear': '😰',
-    'Happiness': '😊',
-    'Love': '❤️',
-    'Surprise': '😲',
-    'Neutral': '😐',
-    'Disgust': '🤢',
-    'Shame': '🙈',
-    'Guilt': '😔',
-    'Confusion': '😕',
-    'Desire': '🔥',
-    'Sarcasm': '😏'
-};
-
-// Initialize
+// Init
 document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
-    checkAPIConnection();
+    checkAuthStatus();
+    setupInputAutoResize();
 });
 
-function initializeApp() {
-    chatForm.addEventListener('submit', handleSubmit);
-    messageInput.addEventListener('input', handleInput);
-    closeDisclaimer.addEventListener('click', () => {
-        disclaimer.classList.add('hidden');
-        localStorage.setItem('disclaimerDismissed', 'true');
-    });
-    newChatBtn.addEventListener('click', startNewConversation);
-    messageInput.addEventListener('input', autoResizeTextarea);
+// ==================== AUTH ====================
 
-    if (localStorage.getItem('disclaimerDismissed')) {
-        disclaimer.classList.add('hidden');
-    }
-
-    console.log('Melo chatbot initialized');
-    console.log('API URL:', API_BASE_URL);
+function toggleAuthForm(e) {
+    e.preventDefault();
+    document.getElementById('loginForm').classList.toggle('hidden');
+    document.getElementById('signupForm').classList.toggle('hidden');
+    clearErrors();
 }
 
-// Check API connection
-async function checkAPIConnection() {
+async function handleSignup() {
+    const username = document.getElementById('signupUsername').value.trim();
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const confirm = document.getElementById('signupConfirm').value;
+
+    if (!username || !password) {
+        showSignupError('Username and password required');
+        return;
+    }
+
+    if (password !== confirm) {
+        showSignupError('Passwords do not match');
+        return;
+    }
+
     try {
-        const response = await fetch(`${API_BASE_URL}/health`);
-        if (response.ok) {
-            console.log('✓ Connected to backend API');
-        } else {
-            console.warn('⚠ Backend API returned status:', response.status);
-            addSystemMessage('⚠ Connected to backend but there may be issues. Please refresh.');
+        const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showSignupError(data.error);
+            return;
         }
+
+        currentUser = { user_id: data.user_id, username: data.username };
+        localStorage.setItem('meloUser', JSON.stringify(currentUser));
+        showChatScreen();
+
     } catch (error) {
-        console.error('✗ Cannot connect to backend API:', error);
-        addSystemMessage('❌ Cannot connect to backend API. Check if Railway deployment is running and update the API_URL in app.js');
+        showSignupError('Signup failed: ' + error.message);
     }
 }
 
-// Handle form submission
+async function handleLogin() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+
+    if (!username || !password) {
+        showLoginError('Username and password required');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showLoginError(data.error);
+            return;
+        }
+
+        currentUser = { user_id: data.user_id, username: data.username };
+        localStorage.setItem('meloUser', JSON.stringify(currentUser));
+        showChatScreen();
+        loadConversations();
+
+    } catch (error) {
+        showLoginError('Login failed: ' + error.message);
+    }
+}
+
+function handleLogout() {
+    if (confirm('Are you sure you want to logout?')) {
+        currentUser = null;
+        currentConversationId = null;
+        localStorage.removeItem('meloUser');
+        showLoginScreen();
+    }
+}
+
+function checkAuthStatus() {
+    const saved = localStorage.getItem('meloUser');
+    if (saved) {
+        currentUser = JSON.parse(saved);
+        showChatScreen();
+        loadConversations();
+    } else {
+        showLoginScreen();
+    }
+}
+
+function showLoginScreen() {
+    document.getElementById('loginScreen').classList.remove('hidden');
+    document.getElementById('chatScreen').classList.add('hidden');
+    clearErrors();
+}
+
+function showChatScreen() {
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.getElementById('chatScreen').classList.remove('hidden');
+    document.getElementById('username').textContent = currentUser.username;
+
+    if (!currentConversationId) {
+        addWelcomeMessage();
+    }
+}
+
+function showLoginError(msg) {
+    document.getElementById('loginError').textContent = msg;
+    document.getElementById('loginError').classList.remove('hidden');
+    setTimeout(() => document.getElementById('loginError').classList.add('hidden'), 5000);
+}
+
+function showSignupError(msg) {
+    document.getElementById('signupError').textContent = msg;
+    document.getElementById('signupError').classList.remove('hidden');
+    setTimeout(() => document.getElementById('signupError').classList.add('hidden'), 5000);
+}
+
+function clearErrors() {
+    document.getElementById('loginError').classList.add('hidden');
+    document.getElementById('signupError').classList.add('hidden');
+}
+
+// ==================== CHAT ====================
+
+function addWelcomeMessage() {
+    if (document.getElementById('chatWindow').children.length === 0) {
+        const msg = document.createElement('div');
+        msg.className = 'message bot-message';
+        msg.innerHTML = `
+            <div class="message-avatar">💙</div>
+            <div class="message-content">
+                <div class="message-bubble">
+                    <p>Hello ${currentUser.username}! I'm Melo, your adaptive AI companion. I learn from our conversations to better understand you. How are you feeling today?</p>
+                </div>
+            </div>
+        `;
+        document.getElementById('chatWindow').appendChild(msg);
+    }
+}
+
 async function handleSubmit(e) {
     e.preventDefault();
 
     if (isProcessing) return;
 
-    const message = messageInput.value.trim();
-
+    const message = document.getElementById('messageInput').value.trim();
     if (!message) return;
 
     isProcessing = true;
-    sendBtn.disabled = true;
 
     addMessageToChat(message, 'user');
-    messageInput.value = '';
-    charCounter.textContent = '0/1000';
-    messageInput.style.height = 'auto';
-
-    typingIndicator.classList.add('active');
+    document.getElementById('messageInput').value = '';
+    updateCharCounter();
+    document.getElementById('sendBtn').disabled = true;
+    document.getElementById('typingIndicator').classList.remove('hidden');
 
     try {
         const response = await fetch(`${API_BASE_URL}/chat`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message: message,
-                user_id: currentUserId,
+                user_id: currentUser.user_id,
                 conversation_id: currentConversationId
             })
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || `HTTP error! status: ${response.status}`);
+            throw new Error('Chat failed');
         }
 
         const data = await response.json();
+        currentConversationId = data.conversation_id;
 
-        if (data.conversation_id) {
-            currentConversationId = data.conversation_id;
-        }
-
-        typingIndicator.classList.remove('active');
+        document.getElementById('typingIndicator').classList.add('hidden');
 
         setTimeout(() => {
             addMessageToChat(data.reply, 'bot');
-            updateEmotionDisplay(data.emotion, data.confidence);
-
-            if (data.needs_escalation) {
-                showCrisisAlert();
+            if (data.emotion) {
+                showEmotion(data.emotion, data.confidence);
             }
+            loadConversations();
         }, 500);
 
     } catch (error) {
-        console.error('Error sending message:', error);
-        typingIndicator.classList.remove('active');
-        addMessageToChat(
-            `I apologize, but I encountered an error: ${error.message}. Please try again or check your internet connection.`,
-            'bot'
-        );
+        console.error('Error:', error);
+        document.getElementById('typingIndicator').classList.add('hidden');
+        addMessageToChat('Sorry, something went wrong. Please try again.', 'bot');
     } finally {
         isProcessing = false;
-        sendBtn.disabled = false;
-        messageInput.focus();
+        document.getElementById('sendBtn').disabled = false;
     }
 }
 
-// Add system message
-function addSystemMessage(text) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message bot-message';
-    messageDiv.innerHTML = `
-        <div class="message-avatar">⚠️</div>
-        <div class="message-content">
-            <div class="message-bubble" style="background: #fff3cd; border: 1px solid #ffc107; color: #856404;">
-                <p>${text}</p>
-            </div>
-            <div class="message-time">System</div>
-        </div>
-    `;
-    chatWindow.appendChild(messageDiv);
-    scrollToBottom();
-}
-
-// Add message to chat window
 function addMessageToChat(text, sender) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${sender}-message`;
+    const msg = document.createElement('div');
+    msg.className = `message ${sender}-message`;
 
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
@@ -185,144 +237,116 @@ function addMessageToChat(text, sender) {
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
 
-    const paragraphs = text.split('\n\n');
-    paragraphs.forEach(para => {
-        if (para.trim()) {
+    text.split('\n').forEach((line, idx) => {
+        if (line.trim()) {
+            if (idx > 0) bubble.appendChild(document.createElement('br'));
             const p = document.createElement('p');
-            p.textContent = para.trim();
+            p.textContent = line.trim();
             bubble.appendChild(p);
         }
     });
 
     const time = document.createElement('div');
     time.className = 'message-time';
-    time.textContent = formatTime(new Date());
+    time.textContent = new Date().toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+    });
 
     content.appendChild(bubble);
     content.appendChild(time);
-    messageDiv.appendChild(avatar);
-    messageDiv.appendChild(content);
+    msg.appendChild(avatar);
+    msg.appendChild(content);
 
-    chatWindow.appendChild(messageDiv);
-    scrollToBottom();
+    document.getElementById('chatWindow').appendChild(msg);
+    document.getElementById('chatWindow').scrollTop = document.getElementById('chatWindow').scrollHeight;
 }
 
-// Update emotion display
-function updateEmotionDisplay(emotion, confidence) {
-    const emoji = EMOTION_EMOJIS[emotion] || '😐';
-    emotionValue.textContent = `${emoji} ${emotion}`;
-    emotionConfidence.textContent = `(${(confidence * 100).toFixed(1)}% confidence)`;
-    emotionDisplay.classList.add('visible');
+function showEmotion(emotion, confidence) {
+    const emotionIcons = {
+        'Happiness': '😊', 'Sadness': '😢', 'Anger': '😠',
+        'Anxiety': '😰', 'Love': '❤️', 'Loneliness': '😔',
+        'Confusion': '😕', 'Hope': '🌟', 'Overwhelm': '😫',
+        'Crisis': '🚨', 'Neutral': '😐'
+    };
 
-    setTimeout(() => {
-        emotionDisplay.classList.remove('visible');
-    }, 10000);
+    document.getElementById('emotionIcon').textContent = emotionIcons[emotion] || '💭';
+    document.getElementById('emotionValue').textContent = emotion;
+    document.getElementById('emotionConfidence').textContent = `(${(confidence * 100).toFixed(0)}%)`;
+    document.getElementById('emotionDisplay').classList.remove('hidden');
+    setTimeout(() => document.getElementById('emotionDisplay').classList.add('hidden'), 8000);
 }
 
-// Handle input changes
-function handleInput(e) {
-    const length = e.target.value.length;
-    charCounter.textContent = `${length}/1000`;
+// ==================== HISTORY ====================
 
-    if (length > 900) {
-        charCounter.style.color = 'var(--danger)';
-    } else {
-        charCounter.style.color = 'var(--text-secondary)';
+async function loadConversations() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/conversations?user_id=${currentUser.user_id}`);
+        const data = await response.json();
+
+        const list = document.getElementById('conversationList');
+        list.innerHTML = '';
+
+        data.conversations.forEach(conv => {
+            const date = new Date(conv.started_at);
+            const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            const item = document.createElement('div');
+            item.className = 'conversation-item';
+            item.onclick = () => loadConversation(conv.conversation_id);
+            item.innerHTML = `
+                <p>${dateStr} at ${timeStr}</p>
+                <small>${conv.message_count} messages</small>
+            `;
+            list.appendChild(item);
+        });
+
+    } catch (error) {
+        console.error('Failed to load conversations:', error);
     }
 }
 
-// Auto-resize textarea
-function autoResizeTextarea(e) {
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+async function loadConversation(conversationId) {
+    currentConversationId = conversationId;
+    document.getElementById('chatWindow').innerHTML = '';
+    document.getElementById('chatSubtitle').textContent = 'Viewing past conversation';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages`);
+        const data = await response.json();
+
+        data.messages.forEach(msg => {
+            addMessageToChat(msg.message_text, msg.sender_type);
+        });
+
+    } catch (error) {
+        console.error('Failed to load messages:', error);
+    }
 }
 
-// Scroll to bottom of chat
-function scrollToBottom() {
-    setTimeout(() => {
-        chatWindow.scrollTop = chatWindow.scrollHeight;
-    }, 100);
+function startNewChat() {
+    currentConversationId = null;
+    document.getElementById('chatWindow').innerHTML = '';
+    document.getElementById('chatSubtitle').textContent = 'Start a new conversation';
+    addWelcomeMessage();
+    document.getElementById('messageInput').focus();
 }
 
-// Format time
-function formatTime(date) {
-    const now = new Date();
-    const diff = now - date;
+// ==================== UTILS ====================
 
-    if (diff < 60000) {
-        return 'Just now';
-    } else if (diff < 3600000) {
-        const minutes = Math.floor(diff / 60000);
-        return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
-    } else {
-        return date.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
+function setupInputAutoResize() {
+    const input = document.getElementById('messageInput');
+    if (input) {
+        input.addEventListener('input', () => {
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+            updateCharCounter();
         });
     }
 }
 
-// Start new conversation
-async function startNewConversation() {
-    if (!confirm('Start a new conversation? Your current conversation will be saved.')) {
-        return;
-    }
-
-    if (currentConversationId) {
-        try {
-            await fetch(`${API_BASE_URL}/conversations/${currentConversationId}/end`, {
-                method: 'POST'
-            });
-        } catch (error) {
-            console.error('Error ending conversation:', error);
-        }
-    }
-
-    currentConversationId = null;
-    chatWindow.innerHTML = '';
-
-    addMessageToChat(
-        "Hello! I'm Melo, your empathetic AI companion. I'm here to listen and provide emotional support in a safe, non-judgmental space.\n\nFeel free to share what's on your mind. Whether you're feeling happy, sad, anxious, or anything in between, I'm here for you. 💙",
-        'bot'
-    );
-
-    emotionDisplay.classList.remove('visible');
+function updateCharCounter() {
+    const length = document.getElementById('messageInput').value.length;
+    document.getElementById('charCounter').textContent = `${length}/1000`;
 }
-
-// Show crisis alert
-function showCrisisAlert() {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'crisis-alert';
-    alertDiv.innerHTML = `
-        <strong>⚠️ Crisis Support Available</strong>
-        <p>If you're in immediate danger, please call emergency services or:</p>
-        <ul>
-            <li>National Suicide Prevention Lifeline: <a href="tel:988">988</a></li>
-            <li>Crisis Text Line: Text HOME to <a href="sms:741741">741741</a></li>
-            <li>International: <a href="https://findahelpline.com" target="_blank">findahelpline.com</a></li>
-        </ul>
-    `;
-
-    chatWindow.appendChild(alertDiv);
-    scrollToBottom();
-}
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        if (!isProcessing) {
-            chatForm.dispatchEvent(new Event('submit'));
-        }
-    }
-});
-
-// Prevent accidental page refresh
-window.addEventListener('beforeunload', (e) => {
-    if (currentConversationId && chatWindow.children.length > 1) {
-        e.preventDefault();
-        e.returnValue = '';
-    }
-});
-
-console.log('Melo chatbot ready! 💙');
