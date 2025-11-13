@@ -3,131 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Melo - Your AI-powered emotional support companion">
-    <title>Melo - The Therapist Chatbox</title>
-    <link rel="stylesheet" href="static/style.css">
+    <title>Melo - Your Mental Health Companion</title>
+    <link rel="stylesheet" href="static/style_complete.css">
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="chat-header">
-            <div class="header-content">
-                <div class="bot-avatar">💙</div>
-                <div class="header-info">
-                    <h1>Melo</h1>
-                    <p class="subtitle">Your Empathetic AI Companion</p>
-                    <span class="status-indicator">
-                        <span class="status-dot"></span>
-                        Online
-                    </span>
-                </div>
-            </div>
-            <div class="header-actions">
-                <button id="newChatBtn" class="icon-btn" title="Start new conversation">
-                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z"/>
-                    </svg>
-                </button>
-            </div>
-        </header>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen">
+            <div class="auth-container">
+                <div class="auth-box">
+                    <h1>💙 Melo</h1>
+                    <p class="subtitle">Your Adaptive AI Companion</p>
 
-        <!-- Disclaimer -->
-        <div class="disclaimer" id="disclaimer">
-            <div class="disclaimer-content">
-                <strong>⚠️ Important Notice:</strong> Melo is an AI chatbot designed to provide emotional support and guidance. 
-                It is <strong>not a substitute for professional mental health care</strong>. 
-                If you're in crisis, please contact a mental health professional or crisis helpline immediately.
-                <button id="closeDisclaimer" class="close-btn">Got it</button>
-            </div>
-        </div>
-
-        <!-- Chat Window -->
-        <div class="chat-window" id="chatWindow">
-            <!-- Welcome message -->
-            <div class="message bot-message">
-                <div class="message-avatar">💙</div>
-                <div class="message-content">
-                    <div class="message-bubble">
-                        <p>Hello! I'm Melo, your empathetic AI companion. I'm here to listen and provide emotional support in a safe, non-judgmental space.</p>
-                        <p>Feel free to share what's on your mind. Whether you're feeling happy, sad, anxious, or anything in between, I'm here for you. 💙</p>
+                    <!-- Login Form -->
+                    <div id="loginForm" class="auth-form">
+                        <h2>Welcome Back</h2>
+                        <input type="text" id="loginUsername" placeholder="Username" class="input-field">
+                        <input type="password" id="loginPassword" placeholder="Password" class="input-field">
+                        <button onclick="handleLogin()" class="btn btn-primary">Login</button>
+                        <p>New here? <a href="#" onclick="toggleAuthForm(event)">Create Account</a></p>
+                        <div id="loginError" class="error hidden"></div>
                     </div>
-                    <div class="message-time">Just now</div>
+
+                    <!-- Signup Form -->
+                    <div id="signupForm" class="auth-form hidden">
+                        <h2>Create Account</h2>
+                        <input type="text" id="signupUsername" placeholder="Username (3+ chars)" class="input-field">
+                        <input type="email" id="signupEmail" placeholder="Email (optional)" class="input-field">
+                        <input type="password" id="signupPassword" placeholder="Password (6+ chars)" class="input-field">
+                        <input type="password" id="signupConfirm" placeholder="Confirm Password" class="input-field">
+                        <button onclick="handleSignup()" class="btn btn-primary">Sign Up</button>
+                        <p>Already have an account? <a href="#" onclick="toggleAuthForm(event)">Login</a></p>
+                        <div id="signupError" class="error hidden"></div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Typing Indicator -->
-        <div class="typing-indicator" id="typingIndicator">
-            <div class="message-avatar">💙</div>
-            <div class="typing-dots">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
+        <!-- Chat Screen -->
+        <div id="chatScreen" class="screen hidden">
+            <div class="chat-container">
+                <!-- Sidebar -->
+                <div class="sidebar">
+                    <div class="sidebar-header">
+                        <h2>💙 Melo</h2>
+                        <button onclick="startNewChat()" class="btn btn-new-chat" title="Start new conversation">
+                            ➕ New Chat
+                        </button>
+                    </div>
 
-        <!-- Emotion Display -->
-        <div class="emotion-display" id="emotionDisplay">
-            <span class="emotion-label">Detected emotion:</span>
-            <span class="emotion-value" id="emotionValue">-</span>
-            <span class="emotion-confidence" id="emotionConfidence"></span>
-        </div>
+                    <div class="user-info">
+                        <p>👤 <span id="username">User</span></p>
+                        <button onclick="handleLogout()" class="btn btn-logout">🚪 Logout</button>
+                    </div>
 
-        <!-- Input Area -->
-        <form class="chat-input" id="chatForm">
-            <div class="input-wrapper">
-                <textarea 
-                    id="messageInput" 
-                    placeholder="Type your message here..." 
-                    rows="1"
-                    maxlength="1000"
-                    required
-                    autofocus
-                ></textarea>
-                <div class="char-counter" id="charCounter">0/1000</div>
-            </div>
-            <button type="submit" class="send-btn" id="sendBtn">
-                <svg width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11ZM6.636 10.07l2.761 4.338L14.13 2.576 6.636 10.07Zm6.787-8.201L1.591 6.602l4.339 2.76 7.494-7.493Z"/>
-                </svg>
-                <span>Send</span>
-            </button>
-        </form>
+                    <div class="history-section">
+                        <h4>📜 Conversations</h4>
+                        <div id="conversationList" class="conversation-list"></div>
+                    </div>
+                </div>
 
-        <!-- Footer -->
-        <footer class="chat-footer">
-            <p>
-                🔒 Your privacy matters. Conversations are securely stored. 
-                <a href="#" id="privacyLink">Privacy Policy</a>
-            </p>
-            <p class="crisis-info">
-                <strong>In crisis?</strong> 
-                <a href="tel:988">Call 988</a> or 
-                <a href="sms:741741">Text HOME to 741741</a>
-            </p>
-        </footer>
-    </div>
+                <!-- Main Chat -->
+                <div class="chat-main">
+                    <!-- Header -->
+                    <div class="chat-header">
+                        <div class="header-left">
+                            <h2>Chat with Melo</h2>
+                            <p id="chatSubtitle" class="subtitle-text">Start a new conversation</p>
+                        </div>
+                        <div class="header-right">
+                            <div id="emotionDisplay" class="emotion-display hidden">
+                                <span id="emotionIcon"></span>
+                                <span id="emotionValue"></span>
+                                <span id="emotionConfidence"></span>
+                            </div>
+                        </div>
+                    </div>
 
-    <!-- Feedback Modal -->
-    <div class="modal" id="feedbackModal">
-        <div class="modal-content">
-            <h2>How was your conversation?</h2>
-            <p>Your feedback helps us improve Melo</p>
-            <div class="rating">
-                <span class="star" data-rating="1">★</span>
-                <span class="star" data-rating="2">★</span>
-                <span class="star" data-rating="3">★</span>
-                <span class="star" data-rating="4">★</span>
-                <span class="star" data-rating="5">★</span>
-            </div>
-            <textarea id="feedbackText" placeholder="Any additional feedback? (optional)" rows="4"></textarea>
-            <div class="modal-actions">
-                <button id="skipFeedback" class="btn-secondary">Skip</button>
-                <button id="submitFeedback" class="btn-primary">Submit</button>
+                    <!-- Messages -->
+                    <div id="chatWindow" class="chat-window"></div>
+                    <div id="typingIndicator" class="typing-indicator hidden">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+
+                    <!-- Input -->
+                    <form id="chatForm" onsubmit="handleSubmit(event)" class="chat-input-form">
+                        <textarea id="messageInput" 
+                                  placeholder="Tell me how you're feeling... (Melo learns from our conversations)" 
+                                  rows="1" 
+                                  class="chat-input" 
+                                  maxlength="1000"></textarea>
+                        <div class="input-bottom">
+                            <span id="charCounter" class="char-counter">0/1000</span>
+                            <button type="submit" id="sendBtn" class="btn btn-send">Send 📤</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="static/app.js"></script>
+    <script src="static/app_complete.js"></script>
 </body>
 </html>
