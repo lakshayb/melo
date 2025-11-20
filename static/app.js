@@ -5,7 +5,7 @@
 
 const API_BASE_URL = window.location.hostname === 'localhost'
     ? 'http://localhost:5000/api'
-    : '/api';
+    : 'https://melo-backend-production.up.railway.app/api';
 
 let currentUser = null;
 let currentConversationId = null;
