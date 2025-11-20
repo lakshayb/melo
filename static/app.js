@@ -1,6 +1,6 @@
 /**
- * Melo - Fixed Frontend
- * Login form hiding/showing properly
+ * Melo - Enhanced Frontend
+ * Features: Theme toggle, Enter to send, Right-click delete, Auto-delete old chats
  */
 
 const API_BASE_URL = window.location.hostname === 'localhost'
@@ -10,11 +10,136 @@ const API_BASE_URL = window.location.hostname === 'localhost'
 let currentUser = null;
 let currentConversationId = null;
 let isProcessing = false;
+let selectedChatIdForDelete = null;
+
+// ==================== INITIALIZATION ====================
 
 document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme();
     checkAuthStatus();
     setupInputAutoResize();
+    setupContextMenu();
 });
+
+// ==================== THEME MANAGEMENT ====================
+
+function initializeTheme() {
+    const savedTheme = localStorage.getItem('meloTheme') || 'dark';
+    setTheme(savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.body.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+}
+
+function setTheme(theme) {
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('meloTheme', theme);
+
+    const themeIcon = document.querySelector('.theme-icon');
+    if (themeIcon) {
+        themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    }
+}
+
+// ==================== KEYBOARD HANDLING ====================
+
+function handleKeyDown(event) {
+    // Enter without Shift = Send message
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        const form = document.getElementById('chatForm');
+        form.dispatchEvent(new Event('submit'));
+    }
+    // Shift+Enter = New line (default behavior)
+}
+
+// ==================== CONTEXT MENU FOR DELETE ====================
+
+function setupContextMenu() {
+    const contextMenu = document.getElementById('contextMenu');
+
+    // Hide context menu on click outside
+    document.addEventListener('click', () => {
+        contextMenu.classList.add('hidden');
+    });
+
+    // Prevent default context menu
+    document.getElementById('conversationList').addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+
+        const conversationItem = e.target.closest('.conversation-item');
+        if (conversationItem) {
+            selectedChatIdForDelete = conversationItem.dataset.conversationId;
+
+            // Position context menu
+            contextMenu.style.left = e.pageX + 'px';
+            contextMenu.style.top = e.pageY + 'px';
+            contextMenu.classList.remove('hidden');
+        }
+    });
+}
+
+async function deleteChat() {
+    const contextMenu = document.getElementById('contextMenu');
+    contextMenu.classList.add('hidden');
+
+    if (!selectedChatIdForDelete) return;
+
+    if (!confirm('Are you sure you want to delete this conversation?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/conversations/${selectedChatIdForDelete}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+            // If deleted current conversation, reset
+            if (currentConversationId === selectedChatIdForDelete) {
+                currentConversationId = null;
+                document.getElementById('chatWindow').innerHTML = '';
+                addWelcomeMessage();
+            }
+
+            // Reload conversation list
+            loadConversations();
+        } else {
+            alert('Failed to delete conversation');
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('Error deleting conversation');
+    }
+
+    selectedChatIdForDelete = null;
+}
+
+// ==================== AUTO-DELETE OLD CHATS ====================
+
+async function autoDeleteOldChats() {
+    if (!currentUser) return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/conversations/cleanup?user_id=${currentUser.user_id}&days=7`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.deleted_count > 0) {
+                console.log(`Auto-deleted ${data.deleted_count} old conversations`);
+                loadConversations();
+            }
+        }
+    } catch (error) {
+        console.error('Auto-delete error:', error);
+    }
+}
 
 // ==================== FORM SWITCHING ====================
 
@@ -50,6 +175,16 @@ async function handleSignup() {
         return;
     }
 
+    if (username.length < 3) {
+        showSignupError('Username must be at least 3 characters');
+        return;
+    }
+
+    if (password.length < 6) {
+        showSignupError('Password must be at least 6 characters');
+        return;
+    }
+
     if (password !== confirm) {
         showSignupError('Passwords do not match');
         return;
@@ -65,13 +200,14 @@ async function handleSignup() {
         const data = await response.json();
 
         if (!response.ok) {
-            showSignupError(data.error);
+            showSignupError(data.error || 'Signup failed');
             return;
         }
 
         currentUser = { user_id: data.user_id, username: data.username };
         localStorage.setItem('meloUser', JSON.stringify(currentUser));
         showChatScreen();
+        autoDeleteOldChats();
 
     } catch (error) {
         showSignupError('Signup failed: ' + error.message);
@@ -97,7 +233,7 @@ async function handleLogin() {
         const data = await response.json();
 
         if (!response.ok) {
-            showLoginError(data.error);
+            showLoginError(data.error || 'Login failed');
             return;
         }
 
@@ -105,6 +241,7 @@ async function handleLogin() {
         localStorage.setItem('meloUser', JSON.stringify(currentUser));
         showChatScreen();
         loadConversations();
+        autoDeleteOldChats();
 
     } catch (error) {
         showLoginError('Login failed: ' + error.message);
@@ -126,6 +263,7 @@ function checkAuthStatus() {
         currentUser = JSON.parse(saved);
         showChatScreen();
         loadConversations();
+        autoDeleteOldChats();
     } else {
         showLoginScreen();
     }
@@ -150,30 +288,34 @@ function showChatScreen() {
 }
 
 function showLoginError(msg) {
-    document.getElementById('loginError').textContent = msg;
-    document.getElementById('loginError').classList.remove('hidden');
+    const errorEl = document.getElementById('loginError');
+    errorEl.textContent = msg;
+    errorEl.classList.remove('hidden');
 }
 
 function showSignupError(msg) {
-    document.getElementById('signupError').textContent = msg;
-    document.getElementById('signupError').classList.remove('hidden');
+    const errorEl = document.getElementById('signupError');
+    errorEl.textContent = msg;
+    errorEl.classList.remove('hidden');
 }
 
 // ==================== CHAT ====================
 
 function addWelcomeMessage() {
-    if (document.getElementById('chatWindow').children.length === 0) {
+    const chatWindow = document.getElementById('chatWindow');
+    if (chatWindow.children.length === 0) {
         const msg = document.createElement('div');
         msg.className = 'message bot-message';
         msg.innerHTML = `
             <div class="message-avatar">💙</div>
             <div class="message-content">
                 <div class="message-bubble">
-                    <p>Hello ${currentUser.username}! I'm Melo, your adaptive AI companion. How are you feeling today?</p>
+                    <p>Hello ${currentUser.username}! I'm Melo, your adaptive AI companion powered by GPT-OSS 120B. How are you feeling today?</p>
                 </div>
+                <div class="message-time">${formatTime(new Date())}</div>
             </div>
         `;
-        document.getElementById('chatWindow').appendChild(msg);
+        chatWindow.appendChild(msg);
     }
 }
 
@@ -182,13 +324,14 @@ async function handleSubmit(e) {
 
     if (isProcessing) return;
 
-    const message = document.getElementById('messageInput').value.trim();
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
     if (!message) return;
 
     isProcessing = true;
 
     addMessageToChat(message, 'user');
-    document.getElementById('messageInput').value = '';
+    input.value = '';
     updateCharCounter();
     document.getElementById('sendBtn').disabled = true;
     document.getElementById('typingIndicator').classList.add('active');
@@ -217,7 +360,7 @@ async function handleSubmit(e) {
                 showEmotion(data.emotion, data.confidence);
             }
             loadConversations();
-        }, 500);
+        }, 300);
 
     } catch (error) {
         document.getElementById('typingIndicator').classList.remove('active');
@@ -225,10 +368,12 @@ async function handleSubmit(e) {
     } finally {
         isProcessing = false;
         document.getElementById('sendBtn').disabled = false;
+        input.focus();
     }
 }
 
 function addMessageToChat(text, sender) {
+    const chatWindow = document.getElementById('chatWindow');
     const msg = document.createElement('div');
     msg.className = `message ${sender}-message`;
 
@@ -242,43 +387,52 @@ function addMessageToChat(text, sender) {
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
 
-    text.split('\n').forEach((line, idx) => {
+    // Handle line breaks
+    const lines = text.split('\n');
+    lines.forEach((line, idx) => {
         if (line.trim()) {
             const p = document.createElement('p');
             p.textContent = line.trim();
+            if (idx > 0) p.style.marginTop = '8px';
             bubble.appendChild(p);
         }
     });
 
     const time = document.createElement('div');
     time.className = 'message-time';
-    time.textContent = new Date().toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit'
-    });
+    time.textContent = formatTime(new Date());
 
     content.appendChild(bubble);
     content.appendChild(time);
     msg.appendChild(avatar);
     msg.appendChild(content);
 
-    document.getElementById('chatWindow').appendChild(msg);
-    document.getElementById('chatWindow').scrollTop = document.getElementById('chatWindow').scrollHeight;
+    chatWindow.appendChild(msg);
+    chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function formatTime(date) {
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+    });
 }
 
 function showEmotion(emotion, confidence) {
     const emotionIcons = {
         'Happy': '😊', 'Sad': '😢', 'Angry': '😠',
-        'Anxious': '😰', 'Love': '❤️', 'Lonely': '😔',
-        'Confusion': '😕', 'Hopeful': '🌟', 'Overwhelmed': '😫',
+        'Anxious': '😰', 'Lonely': '😔', 'Hopeful': '🌟',
+        'Confused': '😕', 'Overwhelmed': '😫',
         'Crisis': '🚨', 'Neutral': '😐'
     };
 
+    const display = document.getElementById('emotionDisplay');
     document.getElementById('emotionIcon').textContent = emotionIcons[emotion] || '💭';
     document.getElementById('emotionValue').textContent = emotion;
-    document.getElementById('emotionConfidence').textContent = `(${(confidence * 100).toFixed(0)}%)`;
-    document.getElementById('emotionDisplay').classList.remove('hidden');
-    setTimeout(() => document.getElementById('emotionDisplay').classList.add('hidden'), 8000);
+    document.getElementById('emotionConfidence').textContent = `${(confidence * 100).toFixed(0)}%`;
+    display.classList.remove('hidden');
+
+    setTimeout(() => display.classList.add('hidden'), 8000);
 }
 
 // ==================== HISTORY ====================
@@ -291,14 +445,23 @@ async function loadConversations() {
         const list = document.getElementById('conversationList');
         list.innerHTML = '';
 
+        if (data.conversations.length === 0) {
+            list.innerHTML = '<p style="color: var(--text-secondary); font-size: 12px; padding: 8px;">No conversations yet</p>';
+            return;
+        }
+
         data.conversations.forEach(conv => {
             const date = new Date(conv.started_at);
-            const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const dateStr = formatDate(date);
 
             const item = document.createElement('div');
             item.className = 'conversation-item';
+            item.dataset.conversationId = conv.conversation_id;
             item.onclick = () => loadConversation(conv.conversation_id);
-            item.innerHTML = `<p>${dateStr}</p><small>${conv.message_count} messages</small>`;
+            item.innerHTML = `
+                <p>${dateStr}</p>
+                <small>${conv.message_count} messages</small>
+            `;
             list.appendChild(item);
         });
     } catch (error) {
@@ -306,9 +469,24 @@ async function loadConversations() {
     }
 }
 
+function formatDate(date) {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+        return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday';
+    } else {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+}
+
 async function loadConversation(conversationId) {
     currentConversationId = conversationId;
-    document.getElementById('chatWindow').innerHTML = '';
+    const chatWindow = document.getElementById('chatWindow');
+    chatWindow.innerHTML = '';
 
     try {
         const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages`);
@@ -319,6 +497,7 @@ async function loadConversation(conversationId) {
         });
     } catch (error) {
         console.error('Failed to load messages:', error);
+        chatWindow.innerHTML = '<p style="color: var(--error); text-align: center;">Failed to load conversation</p>';
     }
 }
 
@@ -326,20 +505,26 @@ function startNewChat() {
     currentConversationId = null;
     document.getElementById('chatWindow').innerHTML = '';
     addWelcomeMessage();
+    document.getElementById('messageInput').focus();
 }
+
+// ==================== INPUT HELPERS ====================
 
 function setupInputAutoResize() {
     const input = document.getElementById('messageInput');
     if (input) {
         input.addEventListener('input', () => {
             input.style.height = 'auto';
-            input.style.height = Math.min(input.scrollHeight, 80) + 'px';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
             updateCharCounter();
         });
     }
 }
 
 function updateCharCounter() {
-    const length = document.getElementById('messageInput').value.length;
-    document.getElementById('charCounter').textContent = `${length}/1000`;
+    const input = document.getElementById('messageInput');
+    const counter = document.getElementById('charCounter');
+    if (input && counter) {
+        counter.textContent = `${input.value.length}/1000`;
+    }
 }
