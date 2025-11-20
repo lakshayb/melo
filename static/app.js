@@ -1,6 +1,6 @@
 /**
- * Melo - Complete Frontend
- * Login + Chat History + Adaptive NLP Learning
+ * Melo - Fixed Frontend
+ * Login form hiding/showing properly
  */
 
 const API_BASE_URL = window.location.hostname === 'localhost'
@@ -11,20 +11,33 @@ let currentUser = null;
 let currentConversationId = null;
 let isProcessing = false;
 
-// Init
 document.addEventListener('DOMContentLoaded', () => {
     checkAuthStatus();
     setupInputAutoResize();
 });
 
-// ==================== AUTH ====================
+// ==================== FORM SWITCHING ====================
 
-function toggleAuthForm(e) {
+function switchToSignup(e) {
     e.preventDefault();
-    document.getElementById('loginForm').classList.toggle('hidden');
-    document.getElementById('signupForm').classList.toggle('hidden');
+    document.getElementById('loginForm').classList.remove('active');
+    document.getElementById('signupForm').classList.add('active');
     clearErrors();
 }
+
+function switchToLogin(e) {
+    e.preventDefault();
+    document.getElementById('signupForm').classList.remove('active');
+    document.getElementById('loginForm').classList.add('active');
+    clearErrors();
+}
+
+function clearErrors() {
+    document.getElementById('loginError').classList.add('hidden');
+    document.getElementById('signupError').classList.add('hidden');
+}
+
+// ==================== AUTH ====================
 
 async function handleSignup() {
     const username = document.getElementById('signupUsername').value.trim();
@@ -121,6 +134,8 @@ function checkAuthStatus() {
 function showLoginScreen() {
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('chatScreen').classList.add('hidden');
+    document.getElementById('loginForm').classList.add('active');
+    document.getElementById('signupForm').classList.remove('active');
     clearErrors();
 }
 
@@ -137,18 +152,11 @@ function showChatScreen() {
 function showLoginError(msg) {
     document.getElementById('loginError').textContent = msg;
     document.getElementById('loginError').classList.remove('hidden');
-    setTimeout(() => document.getElementById('loginError').classList.add('hidden'), 5000);
 }
 
 function showSignupError(msg) {
     document.getElementById('signupError').textContent = msg;
     document.getElementById('signupError').classList.remove('hidden');
-    setTimeout(() => document.getElementById('signupError').classList.add('hidden'), 5000);
-}
-
-function clearErrors() {
-    document.getElementById('loginError').classList.add('hidden');
-    document.getElementById('signupError').classList.add('hidden');
 }
 
 // ==================== CHAT ====================
@@ -161,7 +169,7 @@ function addWelcomeMessage() {
             <div class="message-avatar">💙</div>
             <div class="message-content">
                 <div class="message-bubble">
-                    <p>Hello ${currentUser.username}! I'm Melo, your adaptive AI companion. I learn from our conversations to better understand you. How are you feeling today?</p>
+                    <p>Hello ${currentUser.username}! I'm Melo, your adaptive AI companion. How are you feeling today?</p>
                 </div>
             </div>
         `;
@@ -183,7 +191,7 @@ async function handleSubmit(e) {
     document.getElementById('messageInput').value = '';
     updateCharCounter();
     document.getElementById('sendBtn').disabled = true;
-    document.getElementById('typingIndicator').classList.remove('hidden');
+    document.getElementById('typingIndicator').classList.add('active');
 
     try {
         const response = await fetch(`${API_BASE_URL}/chat`, {
@@ -196,14 +204,12 @@ async function handleSubmit(e) {
             })
         });
 
-        if (!response.ok) {
-            throw new Error('Chat failed');
-        }
+        if (!response.ok) throw new Error('Chat failed');
 
         const data = await response.json();
         currentConversationId = data.conversation_id;
 
-        document.getElementById('typingIndicator').classList.add('hidden');
+        document.getElementById('typingIndicator').classList.remove('active');
 
         setTimeout(() => {
             addMessageToChat(data.reply, 'bot');
@@ -214,8 +220,7 @@ async function handleSubmit(e) {
         }, 500);
 
     } catch (error) {
-        console.error('Error:', error);
-        document.getElementById('typingIndicator').classList.add('hidden');
+        document.getElementById('typingIndicator').classList.remove('active');
         addMessageToChat('Sorry, something went wrong. Please try again.', 'bot');
     } finally {
         isProcessing = false;
@@ -239,7 +244,6 @@ function addMessageToChat(text, sender) {
 
     text.split('\n').forEach((line, idx) => {
         if (line.trim()) {
-            if (idx > 0) bubble.appendChild(document.createElement('br'));
             const p = document.createElement('p');
             p.textContent = line.trim();
             bubble.appendChild(p);
@@ -264,9 +268,9 @@ function addMessageToChat(text, sender) {
 
 function showEmotion(emotion, confidence) {
     const emotionIcons = {
-        'Happiness': '😊', 'Sadness': '😢', 'Anger': '😠',
-        'Anxiety': '😰', 'Love': '❤️', 'Loneliness': '😔',
-        'Confusion': '😕', 'Hope': '🌟', 'Overwhelm': '😫',
+        'Happy': '😊', 'Sad': '😢', 'Angry': '😠',
+        'Anxious': '😰', 'Love': '❤️', 'Lonely': '😔',
+        'Confusion': '😕', 'Hopeful': '🌟', 'Overwhelmed': '😫',
         'Crisis': '🚨', 'Neutral': '😐'
     };
 
@@ -290,18 +294,13 @@ async function loadConversations() {
         data.conversations.forEach(conv => {
             const date = new Date(conv.started_at);
             const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
             const item = document.createElement('div');
             item.className = 'conversation-item';
             item.onclick = () => loadConversation(conv.conversation_id);
-            item.innerHTML = `
-                <p>${dateStr} at ${timeStr}</p>
-                <small>${conv.message_count} messages</small>
-            `;
+            item.innerHTML = `<p>${dateStr}</p><small>${conv.message_count} messages</small>`;
             list.appendChild(item);
         });
-
     } catch (error) {
         console.error('Failed to load conversations:', error);
     }
@@ -310,7 +309,6 @@ async function loadConversations() {
 async function loadConversation(conversationId) {
     currentConversationId = conversationId;
     document.getElementById('chatWindow').innerHTML = '';
-    document.getElementById('chatSubtitle').textContent = 'Viewing past conversation';
 
     try {
         const response = await fetch(`${API_BASE_URL}/conversations/${conversationId}/messages`);
@@ -319,7 +317,6 @@ async function loadConversation(conversationId) {
         data.messages.forEach(msg => {
             addMessageToChat(msg.message_text, msg.sender_type);
         });
-
     } catch (error) {
         console.error('Failed to load messages:', error);
     }
@@ -328,19 +325,15 @@ async function loadConversation(conversationId) {
 function startNewChat() {
     currentConversationId = null;
     document.getElementById('chatWindow').innerHTML = '';
-    document.getElementById('chatSubtitle').textContent = 'Start a new conversation';
     addWelcomeMessage();
-    document.getElementById('messageInput').focus();
 }
-
-// ==================== UTILS ====================
 
 function setupInputAutoResize() {
     const input = document.getElementById('messageInput');
     if (input) {
         input.addEventListener('input', () => {
             input.style.height = 'auto';
-            input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+            input.style.height = Math.min(input.scrollHeight, 80) + 'px';
             updateCharCounter();
         });
     }
