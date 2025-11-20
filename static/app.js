@@ -309,7 +309,7 @@ function addWelcomeMessage() {
             <div class="message-avatar">💙</div>
             <div class="message-content">
                 <div class="message-bubble">
-                    <p>Hello ${currentUser.username}! I'm Melo, your adaptive AI companion powered by GPT-OSS 120B. How are you feeling today?</p>
+                    <p>Hello ${currentUser.username}! I'm Melo, your adaptive AI Mental Health companion. How are you feeling today?</p>
                 </div>
                 <div class="message-time">${formatTime(new Date())}</div>
             </div>
