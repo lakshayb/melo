@@ -6,7 +6,7 @@
     <title>Melo - Your Mental Health Companion</title>
     <link rel="stylesheet" href="static/style.css">
 </head>
-<body>
+<body data-theme="dark">
     <div id="app">
         <!-- Login Screen -->
         <div id="loginScreen" class="screen">
@@ -53,7 +53,12 @@
                     </div>
 
                     <div class="user-info">
-                        <p>👤 <span id="username">User</span></p>
+                        <div class="user-info-top">
+                            <p>👤 <span id="username">User</span></p>
+                            <button onclick="toggleTheme()" class="btn-theme" title="Toggle theme">
+                                <span class="theme-icon">🌙</span>
+                            </button>
+                        </div>
                         <button onclick="handleLogout()" class="btn btn-logout">🚪 Logout</button>
                     </div>
 
@@ -83,24 +88,41 @@
                     <!-- Messages -->
                     <div id="chatWindow" class="chat-window"></div>
                     <div id="typingIndicator" class="typing-indicator hidden">
-                        <div class="dot"></div>
-                        <div class="dot"></div>
-                        <div class="dot"></div>
+                        <div class="message bot-message">
+                            <div class="message-avatar">💙</div>
+                            <div class="message-content">
+                                <div class="message-bubble">
+                                    <div class="typing-dots">
+                                        <div class="dot"></div>
+                                        <div class="dot"></div>
+                                        <div class="dot"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Input -->
                     <form id="chatForm" onsubmit="handleSubmit(event)" class="chat-input-form">
                         <textarea id="messageInput" 
-                                  placeholder="Tell me how you're feeling..." 
+                                  placeholder="Tell me how you're feeling... (Press Enter to send, Shift+Enter for new line)" 
                                   rows="1" 
                                   class="chat-input" 
-                                  maxlength="1000"></textarea>
+                                  maxlength="1000"
+                                  onkeydown="handleKeyDown(event)"></textarea>
                         <div class="input-bottom">
                             <span id="charCounter" class="char-counter">0/1000</span>
                             <button type="submit" id="sendBtn" class="btn btn-send">Send 📤</button>
                         </div>
                     </form>
                 </div>
+            </div>
+        </div>
+
+        <!-- Context Menu for Chat Deletion -->
+        <div id="contextMenu" class="context-menu hidden">
+            <div class="context-menu-item" onclick="deleteChat()">
+                <span>🗑️</span> Delete Chat
             </div>
         </div>
     </div>
